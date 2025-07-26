@@ -209,3 +209,12 @@ __marimo__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Node
+node_modules/
+web/dist/
+
+# Python
+analyzer/__pycache__/
+analyzer/*.pyc
+analyzer/venv/
