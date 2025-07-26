@@ -1,0 +1,34 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build UI
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install API deps
+        run: |
+          cd functions
+          npm ci
+
+  analyzer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Analyzer deps
+        run: |
+          cd analyzer
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
