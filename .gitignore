@@ -218,3 +218,6 @@ web/dist/
 analyzer/__pycache__/
 analyzer/*.pyc
 analyzer/venv/
+
+# VITE
+.vite/
