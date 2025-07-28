@@ -1,7 +1,13 @@
+# netlify.toml
+
+# 1. Install functions deps. Install web deps. Build the React app
+
 [build]
+  command   = "npm install --prefix functions && npm install --prefix web && npm --prefix web run build"
   publish   = "web/dist"
   functions = "functions"
 
+# Redirect all /api/* calls to the corresponding Netlify Function
 [[redirects]]
   from   = "/api/*"
   to     = "/.netlify/functions/:splat"
