@@ -1,30 +1,118 @@
+#!/usr/bin/env python3
 """
-Process all high-profile streams in batches of 5.
+analyze_high.py
+  Read Column D (high profile) from CSV, process in parallel batches of 5,
+  60 s each (with a hard timeout), then move to the next batch.
 """
-import argparse, threading
-from utils import load_stream_urls, chunk_list
-from analyze_low import measure_loudness, send_result
+import os
+import re
+import sys
+import subprocess
+import argparse
+import csv
+import requests
 
-BATCH_SIZE   = 5      # concurrent streams
-START_ID     = 1      # IDs assigned in same order as CSV rows
+from datetime import datetime, timezone
+from pathlib import Path
+from dotenv import load_dotenv
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# ─── Load .env ───────────────────────────────────────────────────────────────
+dotenv_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path)
+API_ENDPOINT = os.getenv("API_ENDPOINT")
+API_TOKEN    = os.getenv("API_TOKEN")
+if not API_ENDPOINT or not API_TOKEN:
+    sys.exit(f"[Error] Missing API_ENDPOINT or API_TOKEN in {dotenv_path}")
+
+# ─── Constants ───────────────────────────────────────────────────────────────
+DURATION    = 60    # hard timeout in seconds
+BATCH_SIZE  = 5     # degree of parallelism
+FIFO_OPTS   = "?fifo_size=50000000&overrun_nonfatal=1"
+METER_RE    = re.compile(r"M:\s*([-0-9\.]+)")
+
+# ─── CSV Loader ───────────────────────────────────────────────────────────────
+def load_rows(csv_path):
+    """Read CSV, extract column D ('Highest Profile MCAST'), return list of dicts."""
+    rows = []
+    with open(csv_path, newline="") as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            ip = r.get("Highest Profile MCAST", "").strip()
+            if not ip:
+                continue
+            url = ip if ip.startswith("udp://") else f"udp://{ip}"
+            if "?" not in url:
+                url += FIFO_OPTS
+            rows.append({
+                "name":      r.get("Channel Name", "").strip(),
+                "node":      r.get("NODE", "").strip(),
+                "profile":   "high",
+                "mcast_url": url
+            })
+    if not rows:
+        sys.exit("[Error] No high-profile rows found in CSV.")
+    return rows
+
+# ─── Measure & Send ──────────────────────────────────────────────────────────
+def measure_and_send(row):
+    """Run ffmpeg for DURATION, parse all M: values, then POST result."""
+    cmd = [
+        "ffmpeg", "-hide_banner", "-y", "-i", row["mcast_url"],
+        "-filter_complex", "ebur128=peak=true:video=0:meter=9",
+        "-f", "null", "-"
+    ]
+    proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True)
+    try:
+        _, stderr = proc.communicate(timeout=DURATION)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        _, stderr = proc.communicate()
+
+    vals = [float(m.group(1)) for m in METER_RE.finditer(stderr)]
+    if not vals:
+        return
+
+    mn, mx = min(vals), max(vals)
+    avg    = sum(vals) / len(vals)
+    status = "low" if avg < -23.0 else "loud" if avg > -22.0 else "acceptable"
+
+    payload = {
+        **row,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "min_db":    mn,
+        "max_db":    mx,
+        "avg_db":    avg,
+        "status":    status
+    }
+    headers = {
+        "Authorization": f"Bearer {API_TOKEN}",
+        "Content-Type":  "application/json"
+    }
+    resp = requests.post(API_ENDPOINT, json=payload, headers=headers)
+    if not resp.ok:
+        print(f"[Error] HTTP {resp.status_code} → {resp.text}")
+    resp.raise_for_status()
+
+# ─── Main ────────────────────────────────────────────────────────────────────
 def main():
     p = argparse.ArgumentParser(description="High-profile loudness analyzer")
-    p.add_argument("--csv", required=False, help="Path to CSV file")
+    p.add_argument("--csv", required=True, help="Path to CSV file")
     args = p.parse_args()
-    csv_path = args.csv or input("CSV path: ").strip()
 
-    urls = load_stream_urls(csv_path, col_index=3)
-    sid = 1
-    for batch in chunk_list(urls, BATCH_SIZE):
-        threads = []
-        for url in batch:
-            t = threading.Thread(target=lambda i,u: send_result(i, measure_loudness(u)),
-                                 args=(sid, url))
-            t.start(); threads.append(t)
-            sid += 1
-        for t in threads:
-            t.join()
+    rows = load_rows(args.csv)
+    total = len(rows)
+    progress = tqdm(total=total, desc="Analyzing high streams", unit="stream")
+
+    with ThreadPoolExecutor(max_workers=BATCH_SIZE) as exe:
+        for i in range(0, total, BATCH_SIZE):
+            batch = rows[i : i + BATCH_SIZE]
+            futures = [exe.submit(measure_and_send, r) for r in batch]
+            for _ in as_completed(futures):
+                progress.update(1)
+
+    progress.close()
 
 if __name__ == "__main__":
     main()
