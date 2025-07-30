@@ -1,74 +1,46 @@
-// functions/submit.js
-
-const { createClient } = require('@supabase/supabase-js');
+const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('Missing SUPABASE_URL or SERVICE_ROLE_KEY');
-}
+const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
 exports.handler = async (event) => {
-  let payload;
-  try {
-    payload = JSON.parse(event.body);
-  } catch (err) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: 'Invalid JSON' })
-    };
-  }
+  const p = JSON.parse(event.body);
 
-  // ─── 1) Upsert the stream definition ────────────────────────────────
-  //    ON CONFLICT by mcast_url so we never duplicate
-  const { data: stream, error: upsertErr } = await supabase
-    .from('streams')
+  // 1) Upsert stream
+  const { data: stream, error: upErr } = await supabase
+    .from("streams")
     .upsert(
       {
-        name:      payload.name,
-        node:      payload.node,
-        profile:   payload.profile,
-        mcast_url: payload.mcast_url
+        name: p.name,
+        node: p.node,
+        profile: p.profile,
+        mcast_url: p.mcast_url,
       },
-      { onConflict: 'mcast_url' }
+      { onConflict: "mcast_url" }
     )
-    .select('id')
+    .select("id")
     .single();
+  if (upErr)
+    return { statusCode: 500, body: JSON.stringify({ error: upErr.message }) };
 
-  if (upsertErr || !stream?.id) {
-    console.error('[submit] stream upsert error', upsertErr);
+  // 2) Insert measurement
+  const { error: measErr } = await supabase.from("measurements").insert([
+    {
+      stream_id: stream.id,
+      timestamp: p.timestamp,
+      min_db: p.min_db,
+      max_db: p.max_db,
+      avg_db: p.avg_db,
+      status: p.status,
+    },
+  ]);
+  if (measErr)
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: upsertErr?.message || 'Stream upsert failed' })
+      body: JSON.stringify({ error: measErr.message }),
     };
-  }
 
-  // ─── 2) Insert the measurement with the returned stream.id ───────────
-  const { error: measErr } = await supabase
-    .from('measurements')
-    .insert([
-      {
-        stream_id: stream.id,
-        timestamp: payload.timestamp,
-        min_db:    payload.min_db,
-        max_db:    payload.max_db,
-        avg_db:    payload.avg_db,
-        status:    payload.status
-      }
-    ]);
-
-  if (measErr) {
-    console.error('[submit] measurement insert error', measErr);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: measErr.message })
-    };
-  }
-
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ success: true })
-  };
+  return { statusCode: 200, body: JSON.stringify({ success: true }) };
 };
