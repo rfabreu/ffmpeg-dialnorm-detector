@@ -1,120 +1,113 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from "react";
 import {
   BarChart,
   Bar,
   XAxis,
   YAxis,
   Tooltip,
-  Brush,
-  Cell,
-  ResponsiveContainer
-} from 'recharts'
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function App() {
-  const [streams, setStreams] = useState([])
-  const [measurements, setMeasurements] = useState([])
+  const [streams, setStreams] = useState([]);
+  const [measurements, setMeasurements] = useState([]);
 
-  // 1) Load streams once on mount
+  // 1) load streams once
   useEffect(() => {
-    fetch('/api/streams')
-      .then(res => res.json())
+    fetch("/api/streams")
+      .then((r) => r.json())
       .then(setStreams)
-      .catch(console.error)
-  }, [])
+      .catch(console.error);
+  }, []);
 
-  // 2) Load all measurements on mount, then poll for new measurements every 15s
+  // 2) poll measurements every 15s
   useEffect(() => {
-    let latestTimestamp = null
+    const load = () => {
+      fetch("/api/measurements")
+        .then((r) => r.json())
+        .then(setMeasurements)
+        .catch(console.error);
+    };
+    load();
+    const iv = setInterval(load, 15000);
+    return () => clearInterval(iv);
+  }, []);
 
-    // Fetch the full history of measurements (initial load)
-    const loadAllMeasurements = () => {
-      return fetch('/api/measurements')
-        .then(res => res.json())
-        .then(data => {
-          setMeasurements(data)  // set initial dataset
-          if (data.length > 0) {
-            // Record the timestamp of the latest measurement
-            const lastEntry = data[data.length - 1]
-            latestTimestamp = lastEntry.timestamp
-          }
-        })
-    }
+  // group measurements by stream_id
+  const byStream = useMemo(() => {
+    const map = {};
+    measurements.forEach((m) => {
+      if (!map[m.stream_id]) map[m.stream_id] = [];
+      map[m.stream_id].push({ ...m, ts: new Date(m.timestamp) });
+    });
+    return map;
+  }, [measurements]);
 
-    // Fetch only new measurements since the last known timestamp
-    const loadNewMeasurements = () => {
-      if (!latestTimestamp) {
-        // If no data yet, fetch full history instead (safety fallback)
-        return loadAllMeasurements()
-      }
-      fetch('/api/measurements?since=' + encodeURIComponent(latestTimestamp))
-        .then(res => res.json())
-        .then(newData => {
-          if (newData && newData.length > 0) {
-            setMeasurements(prevMeasurements => {
-              // Deduplicate new entries against existing measurements
-              const existingKeys = new Set(prevMeasurements.map(m => m.stream_id + '|' + m.timestamp))
-              const filteredNew = newData.filter(m => !existingKeys.has(m.stream_id + '|' + m.timestamp))
-              // Append new measurements to the previous list
-              const combined = [...prevMeasurements, ...filteredNew]
-              // Keep measurements sorted by timestamp (ascending)
-              combined.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-              return combined
-            })
-            // Update the latest known timestamp for the next poll
-            const lastNewMeasurement = newData[newData.length - 1]
-            latestTimestamp = lastNewMeasurement.timestamp
-          }
-        })
-        .catch(console.error)
-    }
-
-    // Initial load and start polling interval
-    loadAllMeasurements().catch(console.error)
-    const intervalId = setInterval(loadNewMeasurements, 15000)
-    return () => clearInterval(intervalId)  // cleanup on unmount
-  }, [])
+  // per‐bar color based on avg_db
+  const barColor = (avg) => {
+    if (avg < -23) return "#FFD700";   // yellow
+    if (avg > -22) return "#FF4136";   // red
+    return "#2ECC40";                  // green
+  };
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-4">IPTS R&D Loudness Dashboard</h1>
-      {streams.map(s => {
-        // Filter measurements for this stream
-        const data = measurements.filter(m => m.stream_id === s.id)
-        return (
-          <div key={s.id} className="mb-6 p-4 border rounded-lg">
-            <h2 className="text-xl mb-2">
-              {s.name} ({s.profile})
-            </h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={data} margin={{ bottom: 20 }}>
-                <XAxis 
-                  dataKey="timestamp"
-                  tickFormatter={(ts) => new Date(ts).toLocaleTimeString()}
-                />
-                <YAxis domain={[-30, 0]} />
-                <Tooltip 
-                  labelFormatter={(ts) => new Date(ts).toLocaleString()}
-                />
-                <Bar dataKey="avg_db">
-                  {data.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`}
-                      fill={
-                        entry.avg_db >= -22 
-                          ? 'red'    // loud
-                          : entry.avg_db >= -24 
-                          ? 'green'  // acceptable
-                          : 'yellow' // low
-                      }
-                    />
-                  ))}
-                </Bar>
-                <Brush dataKey="timestamp" height={30} stroke="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )
-      })}
+    <div className="p-6 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6">
+        IPTS R&D Loudness Dashboard
+      </h1>
+
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
+        {streams.map((s) => {
+          const data = byStream[s.id] || [];
+          return (
+            <div key={s.id} className="border rounded-lg p-3">
+              <h2 className="text-lg font-semibold mb-2">
+                {s.name} ({s.profile})
+              </h2>
+              <ResponsiveContainer width="100%" height={150}>
+                <BarChart data={data} margin={{ top: 5, right: 5, bottom: 20, left: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="ts"
+                    type="number"
+                    scale="time"
+                    domain={["dataMin", "dataMax"]}
+                    tickFormatter={(ts) =>
+                      new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                    }
+                    tick={{ fontSize: 10 }}
+                  />
+                  <YAxis
+                    domain={[-30, 0]}
+                    tick={{ fontSize: 10 }}
+                    width={40}
+                  />
+                  <Tooltip
+                    formatter={(val) => `${val.toFixed(2)} dB`}
+                    labelFormatter={(ts) =>
+                      new Date(ts).toLocaleString()
+                    }
+                  />
+                  <Bar
+                    dataKey="avg_db"
+                    isAnimationActive={false}
+                    shape={({ x, y, width, height, payload }) => (
+                      <rect
+                        x={x}
+                        y={y}
+                        width={width}
+                        height={height}
+                        fill={barColor(payload.avg_db)}
+                      />
+                    )}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        })}
+      </div>
     </div>
-  )
+  );
 }
