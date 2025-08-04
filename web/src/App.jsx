@@ -1,11 +1,12 @@
-// web/src/App.jsx
 import { useEffect, useState } from 'react'
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
+  Brush,
+  Cell,
   ResponsiveContainer
 } from 'recharts'
 
@@ -75,27 +76,45 @@ export default function App() {
 
   return (
     <div className="p-6">
-      <h1 className="text-3xl font-bold mb-4">IPTS R&amp;D Loudness Dashboard</h1>
-      {streams.map(s => (
-        <div key={s.id} className="mb-6 p-4 border rounded-lg">
-          <h2 className="text-xl mb-2">
-            {s.name} ({s.profile})
-          </h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={measurements.filter(m => m.stream_id === s.id)}>
-              <XAxis 
-                dataKey="timestamp"
-                tickFormatter={(ts) => new Date(ts).toLocaleTimeString()} 
-              />
-              <YAxis domain={[-30, 0]} />
-              <Tooltip 
-                labelFormatter={(ts) => new Date(ts).toLocaleString()} 
-              />
-              <Line type="monotone" dataKey="avg_db" stroke="#8884d8" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      ))}
+      <h1 className="text-3xl font-bold mb-4">IPTS R&D Loudness Dashboard</h1>
+      {streams.map(s => {
+        // Filter measurements for this stream
+        const data = measurements.filter(m => m.stream_id === s.id)
+        return (
+          <div key={s.id} className="mb-6 p-4 border rounded-lg">
+            <h2 className="text-xl mb-2">
+              {s.name} ({s.profile})
+            </h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={data} margin={{ bottom: 20 }}>
+                <XAxis 
+                  dataKey="timestamp"
+                  tickFormatter={(ts) => new Date(ts).toLocaleTimeString()}
+                />
+                <YAxis domain={[-30, 0]} />
+                <Tooltip 
+                  labelFormatter={(ts) => new Date(ts).toLocaleString()}
+                />
+                <Bar dataKey="avg_db">
+                  {data.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`}
+                      fill={
+                        entry.avg_db >= -22 
+                          ? 'red'    // loud
+                          : entry.avg_db >= -24 
+                          ? 'green'  // acceptable
+                          : 'yellow' // low
+                      }
+                    />
+                  ))}
+                </Bar>
+                <Brush dataKey="timestamp" height={30} stroke="#8884d8" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )
+      })}
     </div>
   )
 }
