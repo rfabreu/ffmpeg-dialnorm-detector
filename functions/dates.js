@@ -3,7 +3,7 @@
 const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-// Prefer the service role key if available, otherwise fall back to the anon key.
+// Prefer service‑role key if available; fall back to anon key otherwise.
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
@@ -20,7 +20,7 @@ exports.handler = async () => {
       .from("measurements")
       .select("timestamp")
       .order("timestamp", { ascending: true })
-      .range(0, 99999);
+      .limit(100000);
 
     if (error) {
       console.error("[dates] measurement query error", error);

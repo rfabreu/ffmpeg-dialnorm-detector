@@ -3,7 +3,7 @@
 const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-// Prefer the service role key if available, otherwise fall back to the anon key.
+// Prefer service‑role key if available; fall back to anon key otherwise.
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
@@ -14,7 +14,6 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 exports.handler = async (event) => {
-  // Ensure a date query parameter is provided (YYYY-MM-DD).
   const date = event.queryStringParameters && event.queryStringParameters.date;
   if (!date) {
     return {
@@ -44,6 +43,7 @@ exports.handler = async (event) => {
     const { data: streams, error: streamsErr } = await supabase
       .from("streams")
       .select("id, name, mcast_url");
+
     if (streamsErr) {
       console.error("[matrix] stream query error", streamsErr);
       return {
@@ -52,15 +52,15 @@ exports.handler = async (event) => {
       };
     }
 
-    // Fetch all measurements for the given date.  Use .range() to retrieve
-    // more than the default 1,000 rows—here up to 100,000.
+    // Fetch up to 100k measurements for the given date.
     const { data: measurements, error: measErr } = await supabase
       .from("measurements")
       .select("stream_id, timestamp, avg_db")
       .gte("timestamp", startDate.toISOString())
       .lte("timestamp", endDate.toISOString())
       .order("timestamp", { ascending: true })
-      .range(0, 99999);
+      .limit(100000);
+
     if (measErr) {
       console.error("[matrix] measurement query error", measErr);
       return {
@@ -85,7 +85,7 @@ exports.handler = async (event) => {
 
     // Build the response array.
     const result = streams.map((s) => {
-      // Strip the protocol and query parameters from the multicast URL.
+      // Strip the protocol and any query parameters from the multicast URL.
       let ipPort = s.mcast_url || "";
       ipPort = ipPort.replace(/^udp:\/\//, "");
       const idx = ipPort.indexOf("?");
