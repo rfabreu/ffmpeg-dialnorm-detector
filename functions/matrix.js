@@ -13,7 +13,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 exports.handler = async (event) => {
-  // Ensure a date query parameter is provided.  Use ISO format (YYYY-MM-DD).
+  // Ensure a date query parameter is provided (YYYY-MM-DD).
   const date = event.queryStringParameters && event.queryStringParameters.date;
   if (!date) {
     return {
@@ -25,7 +25,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    // Parse date and compute start/end timestamps in UTC.
+    // Determine UTC start and end of the specified date.
     const startDate = new Date(date);
     if (Number.isNaN(startDate.getTime())) {
       return {
@@ -39,7 +39,7 @@ exports.handler = async (event) => {
     const endDate = new Date(startDate);
     endDate.setUTCHours(23, 59, 59, 999);
 
-    // Fetch all streams.
+    // Fetch all streams (channels).
     const { data: streams, error: streamsErr } = await supabase
       .from("streams")
       .select("id, name, mcast_url");
@@ -51,13 +51,15 @@ exports.handler = async (event) => {
       };
     }
 
-    // Fetch measurements recorded on the given date.
+    // Fetch all measurements for the given date.  Use .range() to
+    // retrieve more than the default 1,000 rows—here up to 100,000.
     const { data: measurements, error: measErr } = await supabase
       .from("measurements")
       .select("stream_id, timestamp, avg_db")
       .gte("timestamp", startDate.toISOString())
       .lte("timestamp", endDate.toISOString())
-      .order("timestamp", { ascending: true });
+      .order("timestamp", { ascending: true })
+      .range(0, 99999);
     if (measErr) {
       console.error("[matrix] measurement query error", measErr);
       return {
@@ -70,8 +72,7 @@ exports.handler = async (event) => {
     const groups = {};
     measurements.forEach((m) => {
       const t = new Date(m.timestamp);
-      const hour = t.getUTCHours();
-      const slot = String(hour).padStart(2, "0") + ":00";
+      const slot = String(t.getUTCHours()).padStart(2, "0") + ":00";
       if (!groups[m.stream_id]) groups[m.stream_id] = {};
       if (!groups[m.stream_id][slot]) {
         groups[m.stream_id][slot] = { sum: m.avg_db, count: 1 };
@@ -81,8 +82,9 @@ exports.handler = async (event) => {
       }
     });
 
-    // Construct the response array.
+    // Build the response array.
     const result = streams.map((s) => {
+      // Strip the protocol and query parameters from the multicast URL.
       let ipPort = s.mcast_url || "";
       ipPort = ipPort.replace(/^udp:\/\//, "");
       const idx = ipPort.indexOf("?");
@@ -95,6 +97,7 @@ exports.handler = async (event) => {
         const avg = sum / count;
         readings[slot] = `${avg.toFixed(1)} dB`;
       });
+
       return {
         channelName: s.name,
         ip: ipPort,

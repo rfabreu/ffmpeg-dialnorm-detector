@@ -14,13 +14,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 exports.handler = async () => {
   try {
-    // Query only the timestamp column from the measurements table.  We do not
-    // need to fetch any other columns for this endpoint.  Sorting ensures the
-    // resulting list of dates will be chronologically ordered once unique.
     const { data, error } = await supabase
       .from("measurements")
       .select("timestamp")
-      .order("timestamp", { ascending: true });
+      .order("timestamp", { ascending: true })
+      .range(0, 99999); // fetch up to 100k rows
+
     if (error) {
       console.error("[dates] measurement query error", error);
       return {
@@ -28,6 +27,7 @@ exports.handler = async () => {
         body: JSON.stringify({ error: error.message }),
       };
     }
+
     const seen = new Set();
     const dates = [];
     data.forEach((m) => {
@@ -37,6 +37,7 @@ exports.handler = async () => {
         dates.push(dateStr);
       }
     });
+
     return {
       statusCode: 200,
       body: JSON.stringify(dates),
