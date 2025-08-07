@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 /**
  * MatrixView component renders a table of loudness readings for a selected
  * date.  It queries the server for available dates and for the matrix data
- * specific to the chosen date.  Nine hourly slots (09:00–17:00) are
- * displayed for each channel, and each cell is color coded based on the dB
+ * specific to the chosen date.  All hour slots that contain data are
+ * displayed for each channel (e.g. 00:00, 01:00, 15:00).  Each cell is color coded based on the dB
  * range using the same thresholds as the dashboard: yellow for values
  * below –23 dB, red for values above –22 dB and green for values in
  * between.  Missing data is shown as “N/A”.
@@ -16,21 +16,6 @@ function MatrixView() {
   const [currentDate, setCurrentDate] = useState("");
   // Matrix data returned from /api/matrix for the selected date.
   const [data, setData] = useState([]);
-
-  // Define the expected time slots (9 runs from 09:00 to 17:00).  These
-  // columns will always appear in the matrix regardless of whether
-  // measurements exist for that slot.
-  const TIME_SLOTS = [
-    "09:00",
-    "10:00",
-    "11:00",
-    "12:00",
-    "13:00",
-    "14:00",
-    "15:00",
-    "16:00",
-    "17:00",
-  ];
 
   // On mount, load the list of available dates.  The endpoint returns
   // chronological dates; we pick the last one as default.
@@ -63,14 +48,19 @@ function MatrixView() {
       });
   }, [currentDate]);
 
-  // The matrix always displays the predefined time slots.  We don't
-  // compute a union from the data because the backend may omit keys for
-  // missing values (rendered as N/A).
-  const timeSlots = TIME_SLOTS;
+  // Compute the union of all time slots present in the data.  Sorting
+  // alphabetically yields chronological order for "HH:MM" strings.
+  const timeSlots = useMemo(() => {
+    const set = new Set();
+    data.forEach((channel) => {
+      Object.keys(channel.readings).forEach((time) => set.add(time));
+    });
+    const arr = Array.from(set);
+    arr.sort((a, b) => a.localeCompare(b));
+    return arr;
+  }, [data]);
 
-  // Determine cell background color based on dB value.  Thresholds match
-  // the dashboard: below -23 dB is too quiet (yellow); above -22 dB is too
-  // loud (red); all others are acceptable (green).
+  // Determine cell background color based on dB value.
   const getCellColor = (valueStr) => {
     const val = parseFloat(valueStr);
     if (isNaN(val)) return "";
