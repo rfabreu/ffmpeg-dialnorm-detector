@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 
 /**
  * MatrixView component renders a table of loudness readings for a selected
  * date.  It queries the server for available dates and for the matrix data
- * specific to the chosen date.  Users can toggle between light and dark
- * themes via a simple checkbox.  Each cell is color coded based on the dB
- * range using the same thresholds as the bar chart (yellow for too quiet,
- * red for too loud, green for acceptable).
+ * specific to the chosen date.  Nine hourly slots (09:00–17:00) are
+ * displayed for each channel, and each cell is color coded based on the dB
+ * range using the same thresholds as the dashboard: yellow for values
+ * below –23 dB, red for values above –22 dB and green for values in
+ * between.  Missing data is shown as “N/A”.
  */
 function MatrixView() {
   // List of dates that have data available.  Populated from /api/dates.
@@ -15,8 +16,21 @@ function MatrixView() {
   const [currentDate, setCurrentDate] = useState("");
   // Matrix data returned from /api/matrix for the selected date.
   const [data, setData] = useState([]);
-  // Dark theme toggle state.
-  const [isDark, setIsDark] = useState(false);
+
+  // Define the expected time slots (9 runs from 09:00 to 17:00).  These
+  // columns will always appear in the matrix regardless of whether
+  // measurements exist for that slot.
+  const TIME_SLOTS = [
+    "09:00",
+    "10:00",
+    "11:00",
+    "12:00",
+    "13:00",
+    "14:00",
+    "15:00",
+    "16:00",
+    "17:00",
+  ];
 
   // On mount, load the list of available dates.  The endpoint returns
   // chronological dates; we pick the last one as default.
@@ -49,19 +63,14 @@ function MatrixView() {
       });
   }, [currentDate]);
 
-  // Compute the union of all time slots present in the data.  Sorting
-  // alphabetically yields chronological order for "HH:MM" strings.
-  const timeSlots = useMemo(() => {
-    const set = new Set();
-    data.forEach((channel) => {
-      Object.keys(channel.readings).forEach((time) => set.add(time));
-    });
-    const arr = Array.from(set);
-    arr.sort((a, b) => a.localeCompare(b));
-    return arr;
-  }, [data]);
+  // The matrix always displays the predefined time slots.  We don't
+  // compute a union from the data because the backend may omit keys for
+  // missing values (rendered as N/A).
+  const timeSlots = TIME_SLOTS;
 
-  // Determine cell background color based on dB value.
+  // Determine cell background color based on dB value.  Thresholds match
+  // the dashboard: below -23 dB is too quiet (yellow); above -22 dB is too
+  // loud (red); all others are acceptable (green).
   const getCellColor = (valueStr) => {
     const val = parseFloat(valueStr);
     if (isNaN(val)) return "";
@@ -76,24 +85,9 @@ function MatrixView() {
   };
 
   return (
-    <div
-      className={
-        (isDark ? "bg-gray-900 text-white" : "bg-white text-black") +
-        " min-h-screen p-4"
-      }
-    >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
+    <div className="min-h-screen p-4 bg-white text-black">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
         <h2 className="text-2xl font-bold">Daily Matrix View</h2>
-        {/* Dark theme toggle */}
-        <label className="inline-flex items-center cursor-pointer">
-          <span className="mr-2 text-sm">Dark Mode</span>
-          <input
-            type="checkbox"
-            checked={isDark}
-            onChange={() => setIsDark(!isDark)}
-            className="form-checkbox h-4 w-4"
-          />
-        </label>
       </div>
 
       {/* Date Picker */}
@@ -108,11 +102,7 @@ function MatrixView() {
           min={dates.length ? dates[0] : undefined}
           max={dates.length ? dates[dates.length - 1] : undefined}
           onChange={handleDateChange}
-          className={
-            (isDark
-              ? "bg-gray-800 border-gray-700"
-              : "bg-white border-gray-300") + " border p-1 rounded"
-          }
+          className="border border-gray-300 p-1 rounded bg-white"
         />
       </div>
 
@@ -121,7 +111,7 @@ function MatrixView() {
         <div className="overflow-auto">
           <table className="min-w-full border-collapse">
             <thead>
-              <tr className={isDark ? "bg-gray-700" : "bg-gray-100"}>
+              <tr className="bg-gray-100">
                 <th className="px-2 py-1 border whitespace-nowrap">
                   Channel Name
                 </th>
@@ -137,10 +127,7 @@ function MatrixView() {
             </thead>
             <tbody>
               {data.map((channel) => (
-                <tr
-                  key={channel.channelName}
-                  className={isDark ? "odd:bg-gray-800" : "odd:bg-gray-50"}
-                >
+                <tr key={channel.channelName} className="odd:bg-gray-50">
                   <td className="px-2 py-1 border font-medium whitespace-nowrap">
                     {channel.channelName}
                   </td>
