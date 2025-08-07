@@ -3,7 +3,6 @@
 const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-// Prefer service‑role key if available; fall back to anon key otherwise.
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
@@ -13,9 +12,11 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Bump this string whenever you modify the function to see if the new code is running.
+const VERSION = "v3";
+
 exports.handler = async () => {
   try {
-    // Select up to 100k timestamps to cover all measurement rows.
     const { data, error } = await supabase
       .from("measurements")
       .select("timestamp")
@@ -30,7 +31,6 @@ exports.handler = async () => {
       };
     }
 
-    // Extract unique YYYY-MM-DD strings in chronological order.
     const seen = new Set();
     const dates = [];
     data.forEach((m) => {
@@ -43,7 +43,7 @@ exports.handler = async () => {
 
     return {
       statusCode: 200,
-      body: JSON.stringify(dates),
+      body: JSON.stringify({ version: VERSION, dates }),
     };
   } catch (err) {
     console.error("[dates] unexpected error", err);
