@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   BarChart,
   Bar,
@@ -46,16 +47,23 @@ export default function App() {
 
   // per‐bar color based on avg_db
   const barColor = (avg) => {
-    if (avg < -23) return "#FFD700";   // yellow
-    if (avg > -22) return "#FF4136";   // red
-    return "#2ECC40";                  // green
+    if (avg < -23) return "#FFD700"; // yellow
+    if (avg > -22) return "#FF4136"; // red
+    return "#2ECC40"; // green
   };
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">
-        IPTS R&D Loudness Dashboard
-      </h1>
+      {/* Simple navigation bar */}
+      <nav className="mb-4 flex justify-end space-x-4">
+        <Link to="/" className="text-blue-600 hover:underline text-sm">
+          Dashboard
+        </Link>
+        <Link to="/matrix" className="text-blue-600 hover:underline text-sm">
+          Matrix View
+        </Link>
+      </nav>
+      <h1 className="text-3xl font-bold mb-6">IPTS R&D Loudness Dashboard</h1>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
         {streams.map((s) => {
@@ -66,7 +74,10 @@ export default function App() {
                 {s.name} ({s.profile})
               </h2>
               <ResponsiveContainer width="100%" height={150}>
-                <BarChart data={data} margin={{ top: 5, right: 5, bottom: 20, left: 5 }}>
+                <BarChart
+                  data={data}
+                  margin={{ top: 5, right: 5, bottom: 20, left: 5 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="ts"
@@ -74,20 +85,17 @@ export default function App() {
                     scale="time"
                     domain={["dataMin", "dataMax"]}
                     tickFormatter={(ts) =>
-                      new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                      new Date(ts).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
                     }
                     tick={{ fontSize: 10 }}
                   />
-                  <YAxis
-                    domain={[-30, 0]}
-                    tick={{ fontSize: 10 }}
-                    width={40}
-                  />
+                  <YAxis domain={[-30, 0]} tick={{ fontSize: 10 }} width={40} />
                   <Tooltip
                     formatter={(val) => `${val.toFixed(2)} dB`}
-                    labelFormatter={(ts) =>
-                      new Date(ts).toLocaleString()
-                    }
+                    labelFormatter={(ts) => new Date(ts).toLocaleString()}
                   />
                   <Bar
                     dataKey="avg_db"
