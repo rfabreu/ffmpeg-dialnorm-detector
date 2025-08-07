@@ -3,8 +3,9 @@
 const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
+// Prefer the service role key if available, otherwise fall back to the anon key.
 const SUPABASE_KEY =
-  process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("[dates] Missing Supabase configuration");
@@ -14,11 +15,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 exports.handler = async () => {
   try {
+    // Select up to 100k timestamps to cover all measurement rows.
     const { data, error } = await supabase
       .from("measurements")
       .select("timestamp")
       .order("timestamp", { ascending: true })
-      .range(0, 99999); // fetch up to 100k rows
+      .range(0, 99999);
 
     if (error) {
       console.error("[dates] measurement query error", error);
@@ -28,6 +30,7 @@ exports.handler = async () => {
       };
     }
 
+    // Extract unique YYYY-MM-DD strings in chronological order.
     const seen = new Set();
     const dates = [];
     data.forEach((m) => {

@@ -3,8 +3,9 @@
 const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
+// Prefer the service role key if available, otherwise fall back to the anon key.
 const SUPABASE_KEY =
-  process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("[matrix] Missing Supabase configuration");
@@ -51,8 +52,8 @@ exports.handler = async (event) => {
       };
     }
 
-    // Fetch all measurements for the given date.  Use .range() to
-    // retrieve more than the default 1,000 rows—here up to 100,000.
+    // Fetch all measurements for the given date.  Use .range() to retrieve
+    // more than the default 1,000 rows—here up to 100,000.
     const { data: measurements, error: measErr } = await supabase
       .from("measurements")
       .select("stream_id, timestamp, avg_db")
