@@ -42,7 +42,7 @@ exports.handler = async (event) => {
     // Fetch all streams (channels).
     const { data: streams, error: streamsErr } = await supabase
       .from("streams")
-      .select("id, name, mcast_url");
+      .select("id, name, mcast_url, profile");
 
     if (streamsErr) {
       console.error("[matrix] stream query error", streamsErr);
@@ -55,7 +55,7 @@ exports.handler = async (event) => {
     // Fetch up to 100k measurements for the given date.
     const { data: measurements, error: measErr } = await supabase
       .from("measurements")
-      .select("stream_id, timestamp, avg_db")
+      .select("stream_id, timestamp, avg_db, status")
       .gte("timestamp", startDate.toISOString())
       .lte("timestamp", endDate.toISOString())
       .order("timestamp", { ascending: true })
@@ -76,10 +76,18 @@ exports.handler = async (event) => {
       const slot = String(t.getUTCHours()).padStart(2, "0") + ":00";
       if (!groups[m.stream_id]) groups[m.stream_id] = {};
       if (!groups[m.stream_id][slot]) {
-        groups[m.stream_id][slot] = { sum: m.avg_db, count: 1 };
+        groups[m.stream_id][slot] = { 
+          sum: m.avg_db, 
+          count: 1,
+          status: m.status 
+        };
       } else {
         groups[m.stream_id][slot].sum += m.avg_db;
         groups[m.stream_id][slot].count += 1;
+        // Keep the most recent status or determine overall status
+        if (m.status) {
+          groups[m.stream_id][slot].status = m.status;
+        }
       }
     });
 
@@ -94,14 +102,17 @@ exports.handler = async (event) => {
       const readings = {};
       const group = groups[s.id] || {};
       Object.keys(group).forEach((slot) => {
-        const { sum, count } = group[slot];
+        const { sum, count, status } = group[slot];
         const avg = sum / count;
+        
+        // Format the reading with dB unit
         readings[slot] = `${avg.toFixed(1)} dB`;
       });
 
       return {
         channelName: s.name,
         ip: ipPort,
+        profile: s.profile,
         readings,
       };
     });

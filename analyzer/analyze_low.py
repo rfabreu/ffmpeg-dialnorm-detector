@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 analyze_low.py
-  Read Column C (low profile) from CSV, process in parallel batches of 10,
+  Read both low and high profile columns from CSV, process in parallel batches of 10,
   60 s each (with a hard timeout), then move to the next batch.
 """
 import os
@@ -38,20 +38,34 @@ def load_rows(csv_path):
     with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
         for r in reader:
-            ip = r.get("Lowest Profile MCAST", "").strip()
-            if not ip:
-                continue
-            url = ip if ip.startswith("udp://") else f"udp://{ip}"
-            if "?" not in url:
-                url += FIFO_OPTS
-            rows.append({
-                "name":      r.get("Channel Name", "").strip(),
-                "node":      r.get("NODE", "").strip(),
-                "profile":   "low",
-                "mcast_url": url
-            })
+            # Process low profile
+            low_ip = r.get("Lowest Profile MCAST", "").strip()
+            if low_ip:
+                url = low_ip if low_ip.startswith("udp://") else f"udp://{low_ip}"
+                if "?" not in url:
+                    url += FIFO_OPTS
+                rows.append({
+                    "name":      r.get("Channel Name", "").strip(),
+                    "node":      r.get("NODE", "").strip(),
+                    "profile":   "low",
+                    "mcast_url": url
+                })
+            
+            # Process high profile
+            high_ip = r.get("Highest Profile MCAST", "").strip()
+            if high_ip:
+                url = high_ip if high_ip.startswith("udp://") else f"udp://{high_ip}"
+                if "?" not in url:
+                    url += FIFO_OPTS
+                rows.append({
+                    "name":      r.get("Channel Name", "").strip(),
+                    "node":      r.get("NODE", "").strip(),
+                    "profile":   "high",
+                    "mcast_url": url
+                })
+    
     if not rows:
-        sys.exit("[Error] No low-profile rows found in CSV.")
+        sys.exit("[Error] No valid multicast IPs found in CSV.")
     return rows
 
 # ─── Measure & Send ──────────────────────────────────────────────────────────
@@ -77,7 +91,14 @@ def measure_and_send(row):
 
     mn, mx = min(vals), max(vals)
     avg    = sum(vals) / len(vals)
-    status = "low" if avg < -23.0 else "loud" if avg > -22.0 else "acceptable"
+    
+    # Enhanced status classification based on EBU R128 standards
+    if avg < -23.0:
+        status = "too_low"
+    elif avg > -18.0:
+        status = "too_loud"
+    else:
+        status = "normal"
 
     payload = {
         **row,
@@ -99,13 +120,13 @@ def measure_and_send(row):
 
 # ─── Main ────────────────────────────────────────────────────────────────────
 def main():
-    p = argparse.ArgumentParser(description="Low-profile loudness analyzer")
+    p = argparse.ArgumentParser(description="Loudness analyzer for both low and high profiles")
     p.add_argument("--csv", required=True, help="Path to CSV file")
     args = p.parse_args()
 
     rows = load_rows(args.csv)
     total = len(rows)
-    progress = tqdm(total=total, desc="Analyzing low streams", unit="stream")
+    progress = tqdm(total=total, desc="Analyzing streams", unit="stream")
 
     with ThreadPoolExecutor(max_workers=BATCH_SIZE) as exe:
         for i in range(0, total, BATCH_SIZE):

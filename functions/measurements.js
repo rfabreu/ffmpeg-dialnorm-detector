@@ -12,21 +12,35 @@ if (!SUPABASE_URL || !PUBLIC_KEY) {
 const supabase = createClient(SUPABASE_URL, PUBLIC_KEY);
 
 exports.handler = async (event) => {
-  // Check for an optional 'since' query parameter
+  // Check for optional query parameters
   const since = event.queryStringParameters && event.queryStringParameters.since;
+  const streamId = event.queryStringParameters && event.queryStringParameters.stream_id;
+  const status = event.queryStringParameters && event.queryStringParameters.status;
+  const limit = event.queryStringParameters && event.queryStringParameters.limit;
 
   // Base query: select all columns from "measurements", sorted by timestamp
   let query = supabase.from("measurements")
-                     .select("*")
-                     .order("timestamp", { ascending: true });
+                     .select("*, streams(name, profile, mcast_url)")
+                     .order("timestamp", { ascending: false });
 
   if (since) {
     // If 'since' is provided, get only measurements with timestamp greater than the given value
     query = query.gt("timestamp", since);
-  } else {
-    // If no 'since' provided (initial load), fetch the full history (up to 10,000 entries)
-    query = query.range(0, 9999);
   }
+  
+  if (streamId) {
+    // Filter by specific stream
+    query = query.eq("stream_id", streamId);
+  }
+  
+  if (status) {
+    // Filter by status
+    query = query.eq("status", status);
+  }
+
+  // Apply limit (default to 1000 if not specified)
+  const queryLimit = limit ? parseInt(limit) : 1000;
+  query = query.limit(queryLimit);
 
   const { data, error } = await query;
   if (error) {

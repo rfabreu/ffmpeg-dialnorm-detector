@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-// Removed React DatePicker import and CSS since we're using a native select now
 
 const MatrixView = () => {
   const [dates, setDates] = useState([]);
@@ -38,11 +37,11 @@ const MatrixView = () => {
   };
 
   return (
-    <div className="p-4">
-      {" "}
-      {/* Container with some padding */}
+    <div className="p-6 max-w-7xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6">Matrix View</h1>
+      
       {/* Date Selector Dropdown */}
-      <div className="mb-4">
+      <div className="mb-6">
         <label
           htmlFor="date-select"
           className="block text-sm font-medium text-gray-700 mb-1"
@@ -62,30 +61,54 @@ const MatrixView = () => {
           ))}
         </select>
       </div>
+      
       {/* Matrix Data Display */}
       {matrixData ? (
-        /** Render the matrix data as before. For example, if matrixData is a 2D array: **/
-        <table className="min-w-full border-collapse border border-gray-300">
-          <tbody>
-            {matrixData.map((row, i) => (
-              <tr key={i}>
-                {row.map((cell, j) => (
-                  <td
-                    key={j}
-                    className="border border-gray-300 px-2 py-1 text-center"
-                  >
-                    {cell}
-                  </td>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Channel Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Multicast IP
+                  </th>
+                  {matrixData[0]?.readings ? Object.keys(matrixData[0].readings).map((slot) => (
+                    <th key={slot} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {slot}
+                    </th>
+                  )) : null}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {matrixData.map((row, i) => (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {row.channelName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 underline">
+                      {row.ip}
+                    </td>
+                    {Object.keys(row.readings || {}).map((slot) => (
+                      <td key={slot} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        {row.readings[slot]}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         // Fallback text if no data is available yet
-        <p className="text-gray-600">
-          No data available for the selected date.
-        </p>
+        <div className="text-center py-12">
+          <p className="text-gray-600 text-lg">
+            No data available for the selected date.
+          </p>
+        </div>
       )}
     </div>
   );
