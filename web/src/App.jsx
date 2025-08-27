@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 export default function App() {
   const [dates, setDates] = useState([]);
   const [selectedDate, setSelectedDate] = useState("");
-  const [heatmapData, setHeatmapData] = useState(null);
+  const [matrixData, setMatrixData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -17,10 +17,10 @@ export default function App() {
         return response.json();
       })
       .then((data) => {
-        console.log("Dates API response:", data); // Debug log
+        console.log("Dates API response:", data);
         // Handle the actual API response structure: {version: "v4", dates: [...]}
         const dateList = data.dates || [];
-        console.log("Extracted dates:", dateList); // Debug log
+        console.log("Extracted dates:", dateList);
         setDates(dateList);
         if (dateList.length > 0) {
           setSelectedDate(dateList[0]);
@@ -32,7 +32,7 @@ export default function App() {
       });
   }, []);
 
-  // Fetch heatmap data whenever the selectedDate changes
+  // Fetch matrix data whenever the selectedDate changes
   useEffect(() => {
     if (!selectedDate) return;
 
@@ -47,10 +47,10 @@ export default function App() {
         return response.json();
       })
       .then((data) => {
-        console.log("Matrix API response:", data); // Debug log
+        console.log("Matrix API response:", data);
         // Ensure data is an array
         if (Array.isArray(data)) {
-          setHeatmapData(data);
+          setMatrixData(data);
         } else {
           console.error("Matrix API returned non-array data:", data);
           setError("Invalid data format received from server");
@@ -58,7 +58,7 @@ export default function App() {
         setLoading(false);
       })
       .catch((error) => {
-        console.error("Error fetching heatmap data:", error);
+        console.error("Error fetching matrix data:", error);
         setError("Failed to load data for selected date");
         setLoading(false);
       });
@@ -199,9 +199,9 @@ export default function App() {
         {/* Loudness Data Matrix */}
         {!loading &&
           !error &&
-          heatmapData &&
-          Array.isArray(heatmapData) &&
-          heatmapData.length > 0 && (
+          matrixData &&
+          Array.isArray(matrixData) &&
+          matrixData.length > 0 && (
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
                 Loudness Levels Matrix for {selectedDate}
@@ -216,9 +216,9 @@ export default function App() {
                       <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">
                         Multicast IP
                       </th>
-                      {heatmapData[0] &&
-                        heatmapData[0].readings &&
-                        formatTimeSlots(heatmapData[0].readings).map(
+                      {matrixData[0] &&
+                        matrixData[0].readings &&
+                        formatTimeSlots(matrixData[0].readings).map(
                           (formattedSlot, index) => (
                             <th
                               key={index}
@@ -231,7 +231,7 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {heatmapData.map((stream, index) => {
+                    {matrixData.map((stream, index) => {
                       if (!stream || !stream.readings) {
                         console.error("Invalid stream data:", stream);
                         return null;
@@ -287,9 +287,9 @@ export default function App() {
         {/* No Data State */}
         {!loading &&
           !error &&
-          (!heatmapData ||
-            !Array.isArray(heatmapData) ||
-            heatmapData.length === 0) && (
+          (!matrixData ||
+            !Array.isArray(matrixData) ||
+            matrixData.length === 0) && (
             <div className="bg-white rounded-lg shadow-md p-12 text-center">
               <div className="text-gray-400 mb-4">
                 <svg
