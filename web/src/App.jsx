@@ -17,8 +17,10 @@ export default function App() {
         return response.json();
       })
       .then((data) => {
-        // Handle the actual API response structure: {dates: [...]}
-        const dateList = data.dates || data || [];
+        console.log("Dates API response:", data); // Debug log
+        // Handle the actual API response structure: {version: "v4", dates: [...]}
+        const dateList = data.dates || [];
+        console.log("Extracted dates:", dateList); // Debug log
         setDates(dateList);
         if (dateList.length > 0) {
           setSelectedDate(dateList[0]);
@@ -45,7 +47,14 @@ export default function App() {
         return response.json();
       })
       .then((data) => {
-        setHeatmapData(data);
+        console.log("Matrix API response:", data); // Debug log
+        // Ensure data is an array
+        if (Array.isArray(data)) {
+          setHeatmapData(data);
+        } else {
+          console.error("Matrix API returned non-array data:", data);
+          setError("Invalid data format received from server");
+        }
         setLoading(false);
       })
       .catch((error) => {
@@ -68,6 +77,11 @@ export default function App() {
 
   // Function to format time slots as Scan A, Scan B, etc. with EST time
   const formatTimeSlots = (timeSlots) => {
+    if (!timeSlots || typeof timeSlots !== "object") {
+      console.error("Invalid timeSlots:", timeSlots);
+      return {};
+    }
+
     const sortedSlots = Object.keys(timeSlots).sort();
     const formattedSlots = {};
 
@@ -117,11 +131,12 @@ export default function App() {
               onChange={handleDateChange}
               className="block w-full rounded-md border border-gray-300 bg-white py-3 px-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
             >
-              {dates.map((dateStr) => (
-                <option key={dateStr} value={dateStr}>
-                  {dateStr}
-                </option>
-              ))}
+              {Array.isArray(dates) &&
+                dates.map((dateStr) => (
+                  <option key={dateStr} value={dateStr}>
+                    {dateStr}
+                  </option>
+                ))}
             </select>
           </div>
         </div>
@@ -182,102 +197,120 @@ export default function App() {
         )}
 
         {/* Loudness Data Matrix */}
-        {!loading && !error && heatmapData && heatmapData.length > 0 && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-              Loudness Levels Matrix for {selectedDate}
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse border border-gray-300">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">
-                      Channel Name
-                    </th>
-                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">
-                      Multicast IP
-                    </th>
-                    {heatmapData[0] &&
-                      formatTimeSlots(heatmapData[0].readings).map(
-                        (formattedSlot, index) => (
-                          <th
-                            key={index}
-                            className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700"
-                          >
-                            {formattedSlot}
-                          </th>
-                        )
-                      )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {heatmapData.map((stream, index) => (
-                    <tr
-                      key={index}
-                      className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                    >
-                      <td className="border border-gray-300 px-4 py-3 font-medium text-gray-900">
-                        {stream.channelName}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3 text-blue-600 underline cursor-pointer">
-                        {stream.ip}
-                      </td>
-                      {Object.keys(stream.readings)
-                        .sort()
-                        .map((timeSlot) => {
-                          const reading = stream.readings[timeSlot];
-                          const dbMatch = reading
-                            ? reading.match(/([-\d.]+)/)
-                            : null;
-                          const dbValue = dbMatch
-                            ? parseFloat(dbMatch[1])
-                            : null;
-                          const bgColor =
-                            dbValue !== null
-                              ? getColorForDb(dbValue)
-                              : "#f3f4f6";
-
-                          return (
-                            <td
-                              key={timeSlot}
-                              className="border border-gray-300 px-4 py-3 text-center"
-                              style={{ backgroundColor: bgColor }}
+        {!loading &&
+          !error &&
+          heatmapData &&
+          Array.isArray(heatmapData) &&
+          heatmapData.length > 0 && (
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
+                Loudness Levels Matrix for {selectedDate}
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse border border-gray-300">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">
+                        Channel Name
+                      </th>
+                      <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">
+                        Multicast IP
+                      </th>
+                      {heatmapData[0] &&
+                        heatmapData[0].readings &&
+                        formatTimeSlots(heatmapData[0].readings).map(
+                          (formattedSlot, index) => (
+                            <th
+                              key={index}
+                              className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700"
                             >
-                              {reading || "No Data"}
-                            </td>
-                          );
-                        })}
+                              {formattedSlot}
+                            </th>
+                          )
+                        )}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {heatmapData.map((stream, index) => {
+                      if (!stream || !stream.readings) {
+                        console.error("Invalid stream data:", stream);
+                        return null;
+                      }
+
+                      return (
+                        <tr
+                          key={index}
+                          className={
+                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                          }
+                        >
+                          <td className="border border-gray-300 px-4 py-3 font-medium text-gray-900">
+                            {stream.channelName || "Unknown"}
+                          </td>
+                          <td className="border border-gray-300 px-4 py-3 text-blue-600 underline cursor-pointer">
+                            {stream.ip || "Unknown"}
+                          </td>
+                          {Object.keys(stream.readings)
+                            .sort()
+                            .map((timeSlot) => {
+                              const reading = stream.readings[timeSlot];
+                              const dbMatch = reading
+                                ? reading.match(/([-\d.]+)/)
+                                : null;
+                              const dbValue = dbMatch
+                                ? parseFloat(dbMatch[1])
+                                : null;
+                              const bgColor =
+                                dbValue !== null
+                                  ? getColorForDb(dbValue)
+                                  : "#f3f4f6";
+
+                              return (
+                                <td
+                                  key={timeSlot}
+                                  className="border border-gray-300 px-4 py-3 text-center"
+                                  style={{ backgroundColor: bgColor }}
+                                >
+                                  {reading || "No Data"}
+                                </td>
+                              );
+                            })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* No Data State */}
-        {!loading && !error && (!heatmapData || heatmapData.length === 0) && (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <div className="text-gray-400 mb-4">
-              <svg
-                className="mx-auto h-12 w-12"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
-              </svg>
+        {!loading &&
+          !error &&
+          (!heatmapData ||
+            !Array.isArray(heatmapData) ||
+            heatmapData.length === 0) && (
+            <div className="bg-white rounded-lg shadow-md p-12 text-center">
+              <div className="text-gray-400 mb-4">
+                <svg
+                  className="mx-auto h-12 w-12"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  />
+                </svg>
+              </div>
+              <p className="text-lg text-gray-600">
+                No data available for the selected date.
+              </p>
             </div>
-            <p className="text-lg text-gray-600">
-              No data available for the selected date.
-            </p>
-          </div>
-        )}
+          )}
       </div>
     </div>
   );
