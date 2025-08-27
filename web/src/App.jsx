@@ -18,7 +18,6 @@ export default function App() {
       })
       .then((data) => {
         console.log("Dates API response:", data);
-        // Handle the actual API response structure: {version: "v4", dates: [...]}
         const dateList = data.dates || [];
         console.log("Extracted dates:", dateList);
         setDates(dateList);
@@ -48,7 +47,6 @@ export default function App() {
       })
       .then((data) => {
         console.log("Matrix API response:", data);
-        // Ensure data is an array
         if (Array.isArray(data)) {
           setMatrixData(data);
         } else {
@@ -218,16 +216,18 @@ export default function App() {
                       </th>
                       {matrixData[0] &&
                         matrixData[0].readings &&
-                        formatTimeSlots(matrixData[0].readings).map(
-                          (formattedSlot, index) => (
+                        Object.keys(matrixData[0].readings)
+                          .sort()
+                          .map((timeSlot, index) => (
                             <th
                               key={index}
                               className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700"
                             >
-                              {formattedSlot}
+                              {`Scan ${String.fromCharCode(
+                                65 + index
+                              )} (${timeSlot})`}
                             </th>
-                          )
-                        )}
+                          ))}
                     </tr>
                   </thead>
                   <tbody>
