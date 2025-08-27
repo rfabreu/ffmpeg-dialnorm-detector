@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import Plot from "react-plotly.js";
 
 export default function App() {
   const [dates, setDates] = useState([]);
@@ -67,53 +66,27 @@ export default function App() {
     return "#2ECC40"; // Green for normal/acceptable
   };
 
-  // Function to get status text based on dB value
-  const getStatusText = (dbValue) => {
-    if (dbValue < -23.0) return "Too Low";
-    if (dbValue > -22.0) return "Too Loud";
-    return "Normal";
-  };
+  // Function to format time slots as Scan A, Scan B, etc. with EST time
+  const formatTimeSlots = (timeSlots) => {
+    const sortedSlots = Object.keys(timeSlots).sort();
+    const formattedSlots = {};
 
-  // Prepare data for Plotly heatmap
-  const prepareHeatmapData = () => {
-    if (!heatmapData || !Array.isArray(heatmapData)) return null;
-
-    // Get unique time slots from all streams
-    const timeSlots = new Set();
-    heatmapData.forEach((stream) => {
-      Object.keys(stream.readings).forEach((time) => timeSlots.add(time));
-    });
-    const sortedTimeSlots = Array.from(timeSlots).sort();
-
-    // Create the heatmap matrix
-    const z = [];
-    const y = []; // Channel names
-    const x = []; // Time slots
-
-    heatmapData.forEach((stream) => {
-      y.push(stream.channelName);
-      const row = [];
-      sortedTimeSlots.forEach((timeSlot) => {
-        const reading = stream.readings[timeSlot];
-        if (reading) {
-          // Extract numeric value from "XX.X dB" format
-          const dbMatch = reading.match(/([-\d.]+)/);
-          const dbValue = dbMatch ? parseFloat(dbMatch[1]) : -25; // Default to -25 if parsing fails
-          row.push(dbValue);
-        } else {
-          row.push(null); // No data for this time slot
+    sortedSlots.forEach((slot, index) => {
+      const scanLetter = String.fromCharCode(65 + index); // A, B, C, etc.
+      const timeInEST = new Date(`2025-01-01T${slot}:00Z`).toLocaleTimeString(
+        "en-US",
+        {
+          timeZone: "America/New_York",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
         }
-      });
-      z.push(row);
+      );
+      formattedSlots[slot] = `Scan ${scanLetter} (${timeInEST} EST)`;
     });
 
-    // Format time slots for display
-    x.push(...sortedTimeSlots);
-
-    return { z, x, y };
+    return formattedSlots;
   };
-
-  const heatmapDataForPlot = prepareHeatmapData();
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -208,70 +181,11 @@ export default function App() {
           </div>
         )}
 
-        {/* Heatmap Visualization */}
-        {!loading && !error && heatmapDataForPlot && (
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-              Loudness Levels for {selectedDate}
-            </h2>
-            <Plot
-              data={[
-                {
-                  z: heatmapDataForPlot.z,
-                  x: heatmapDataForPlot.x,
-                  y: heatmapDataForPlot.y,
-                  type: "heatmap",
-                  colorscale: [
-                    [-30, "#FFD700"], // Yellow for very low
-                    [-23, "#FFD700"], // Yellow for too low
-                    [-22.5, "#2ECC40"], // Green for normal
-                    [-22, "#2ECC40"], // Green for normal
-                    [-15, "#FF4136"], // Red for too loud
-                    [0, "#FF4136"], // Red for very loud
-                  ],
-                  zmin: -30,
-                  zmax: 0,
-                  hoverongaps: false,
-                  hovertemplate:
-                    "<b>%{y}</b><br>" +
-                    "Time: %{x}<br>" +
-                    "Loudness: %{z:.1f} dB<br>" +
-                    "Status: %{customdata}<extra></extra>",
-                  customdata: heatmapDataForPlot.z.map((row) =>
-                    row.map((val) => getStatusText(val))
-                  ),
-                },
-              ]}
-              layout={{
-                title: "",
-                xaxis: {
-                  title: "Time of Scan",
-                  tickangle: -45,
-                },
-                yaxis: {
-                  title: "Channel Name",
-                  autorange: "reversed",
-                },
-                width: null,
-                height: 600,
-                margin: { l: 200, r: 50, t: 50, b: 100 },
-              }}
-              config={{
-                displayModeBar: true,
-                displaylogo: false,
-                modeBarButtonsToRemove: ["pan2d", "lasso2d", "select2d"],
-              }}
-              style={{ width: "100%", height: "100%" }}
-              useResizeHandler={true}
-            />
-          </div>
-        )}
-
-        {/* Data Table View */}
+        {/* Loudness Data Matrix */}
         {!loading && !error && heatmapData && heatmapData.length > 0 && (
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-              Detailed Data Table
+              Loudness Levels Matrix for {selectedDate}
             </h2>
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse border border-gray-300">
@@ -284,16 +198,16 @@ export default function App() {
                       Multicast IP
                     </th>
                     {heatmapData[0] &&
-                      Object.keys(heatmapData[0].readings)
-                        .sort()
-                        .map((timeSlot) => (
+                      formatTimeSlots(heatmapData[0].readings).map(
+                        (formattedSlot, index) => (
                           <th
-                            key={timeSlot}
+                            key={index}
                             className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700"
                           >
-                            {timeSlot}
+                            {formattedSlot}
                           </th>
-                        ))}
+                        )
+                      )}
                   </tr>
                 </thead>
                 <tbody>
@@ -355,7 +269,7 @@ export default function App() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                 />
               </svg>
             </div>
