@@ -13,6 +13,27 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Function to convert UTC time to EST
+function convertUTCToEST(utcTimeString) {
+  try {
+    const utcDate = new Date(utcTimeString);
+    if (isNaN(utcDate.getTime())) {
+      console.error("[matrix] Invalid UTC time:", utcTimeString);
+      return "00:00";
+    }
+
+    return utcDate.toLocaleTimeString("en-US", {
+      timeZone: "America/New_York",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  } catch (error) {
+    console.error("[matrix] Error converting UTC to EST:", error);
+    return "00:00";
+  }
+}
+
 exports.handler = async (event) => {
   const date = event.queryStringParameters && event.queryStringParameters.date;
   if (!date) {
@@ -69,17 +90,28 @@ exports.handler = async (event) => {
       };
     }
 
-    // Group measurements by stream_id and hour-of-day.
+    // Group measurements by stream_id and hour-of-day, tracking the last timestamp for each hour.
     const groups = {};
     measurements.forEach((m) => {
       const t = new Date(m.timestamp);
       const slot = String(t.getUTCHours()).padStart(2, "0") + ":00";
       if (!groups[m.stream_id]) groups[m.stream_id] = {};
       if (!groups[m.stream_id][slot]) {
-        groups[m.stream_id][slot] = { sum: m.avg_db, count: 1 };
+        groups[m.stream_id][slot] = {
+          sum: m.avg_db,
+          count: 1,
+          lastTimestamp: m.timestamp,
+        };
       } else {
         groups[m.stream_id][slot].sum += m.avg_db;
         groups[m.stream_id][slot].count += 1;
+        // Update lastTimestamp if this measurement is newer
+        if (
+          new Date(m.timestamp) >
+          new Date(groups[m.stream_id][slot].lastTimestamp)
+        ) {
+          groups[m.stream_id][slot].lastTimestamp = m.timestamp;
+        }
       }
     });
 
@@ -94,9 +126,10 @@ exports.handler = async (event) => {
       const readings = {};
       const group = groups[s.id] || {};
       Object.keys(group).forEach((slot) => {
-        const { sum, count } = group[slot];
+        const { sum, count, lastTimestamp } = group[slot];
         const avg = sum / count;
-        readings[slot] = `${avg.toFixed(1)} dB`;
+        const estTime = convertUTCToEST(lastTimestamp);
+        readings[slot] = `${avg.toFixed(1)} dB (${estTime} EST)`;
       });
 
       return {

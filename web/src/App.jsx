@@ -73,38 +73,10 @@ export default function App() {
     return "#2ECC40"; // Green for normal/acceptable
   };
 
-  // Function to format time slots as Scan A, Scan B, etc. with EST time
-  const formatTimeSlots = (timeSlots) => {
-    if (!timeSlots || typeof timeSlots !== "object") {
-      console.error("Invalid timeSlots:", timeSlots);
-      return {};
-    }
-
-    const sortedSlots = Object.keys(timeSlots).sort();
-    const formattedSlots = {};
-
-    sortedSlots.forEach((slot, index) => {
-      const scanLetter = String.fromCharCode(65 + index); // A, B, C, etc.
-
-      // Convert UTC time slot to EST
-      // The slot is in format "HH:00" (e.g., "12:00")
-      // We need to create a proper UTC datetime and convert to EST
-      const [hours, minutes] = slot.split(":").map(Number);
-      const utcDate = new Date();
-      utcDate.setUTCHours(hours, minutes, 0, 0);
-
-      // Convert to EST (UTC-5 for EDT, UTC-4 for EST)
-      const estTime = utcDate.toLocaleTimeString("en-US", {
-        timeZone: "America/New_York",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false, // Use 24-hour format
-      });
-
-      formattedSlots[slot] = `Scan ${scanLetter} (${estTime} EST)`;
-    });
-
-    return formattedSlots;
+  // Function to extract scan letter and EST time from the reading
+  const formatScanHeader = (timeSlot, index) => {
+    const scanLetter = String.fromCharCode(65 + index); // A, B, C, etc.
+    return `Scan ${scanLetter} (${timeSlot})`;
   };
 
   return (
@@ -223,16 +195,16 @@ export default function App() {
                       </th>
                       {matrixData[0] &&
                         matrixData[0].readings &&
-                        formatTimeSlots(matrixData[0].readings).map(
-                          (formattedSlot, index) => (
+                        Object.keys(matrixData[0].readings)
+                          .sort()
+                          .map((timeSlot, index) => (
                             <th
                               key={index}
                               className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700"
                             >
-                              {formattedSlot}
+                              {formatScanHeader(timeSlot, index)}
                             </th>
-                          )
-                        )}
+                          ))}
                     </tr>
                   </thead>
                   <tbody>
