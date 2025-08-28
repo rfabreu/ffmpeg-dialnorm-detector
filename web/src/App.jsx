@@ -85,16 +85,23 @@ export default function App() {
 
     sortedSlots.forEach((slot, index) => {
       const scanLetter = String.fromCharCode(65 + index); // A, B, C, etc.
-      const timeInEST = new Date(`2025-01-01T${slot}:00Z`).toLocaleTimeString(
-        "en-US",
-        {
-          timeZone: "America/New_York",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        }
-      );
-      formattedSlots[slot] = `Scan ${scanLetter} (${timeInEST} EST)`;
+
+      // Convert UTC time slot to EST
+      // The slot is in format "HH:00" (e.g., "12:00")
+      // We need to create a proper UTC datetime and convert to EST
+      const [hours, minutes] = slot.split(":").map(Number);
+      const utcDate = new Date();
+      utcDate.setUTCHours(hours, minutes, 0, 0);
+
+      // Convert to EST (UTC-5 for EDT, UTC-4 for EST)
+      const estTime = utcDate.toLocaleTimeString("en-US", {
+        timeZone: "America/New_York",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false, // Use 24-hour format
+      });
+
+      formattedSlots[slot] = `Scan ${scanLetter} (${estTime} EST)`;
     });
 
     return formattedSlots;
@@ -174,7 +181,7 @@ export default function App() {
                 >
                   <path
                     fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
                     clipRule="evenodd"
                   />
                 </svg>
@@ -216,18 +223,16 @@ export default function App() {
                       </th>
                       {matrixData[0] &&
                         matrixData[0].readings &&
-                        Object.keys(matrixData[0].readings)
-                          .sort()
-                          .map((timeSlot, index) => (
+                        formatTimeSlots(matrixData[0].readings).map(
+                          (formattedSlot, index) => (
                             <th
                               key={index}
                               className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700"
                             >
-                              {`Scan ${String.fromCharCode(
-                                65 + index
-                              )} (${timeSlot})`}
+                              {formattedSlot}
                             </th>
-                          ))}
+                          )
+                        )}
                     </tr>
                   </thead>
                   <tbody>
