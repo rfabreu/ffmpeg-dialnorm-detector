@@ -73,10 +73,49 @@ export default function App() {
     return "#2ECC40"; // Green for normal/acceptable
   };
 
-  // Function to extract scan letter and EST time from the reading
+  // Function to extract EST time from the last reading in a column
+  const getLastTimestampForColumn = (timeSlot) => {
+    if (!matrixData || !Array.isArray(matrixData)) return timeSlot;
+
+    let lastTimestamp = null;
+
+    // Find the last non-null reading for this time slot across all streams
+    for (let i = matrixData.length - 1; i >= 0; i--) {
+      const stream = matrixData[i];
+      if (stream && stream.readings && stream.readings[timeSlot]) {
+        const reading = stream.readings[timeSlot];
+        // Extract EST time from the reading format: "XX.X dB (HH:MM EST)"
+        const estTimeMatch = reading.match(/\((\d{2}:\d{2}) EST\)/);
+        if (estTimeMatch) {
+          lastTimestamp = estTimeMatch[1];
+          break;
+        }
+      }
+    }
+
+    return lastTimestamp || timeSlot;
+  };
+
+  // Function to format scan header with last timestamp
   const formatScanHeader = (timeSlot, index) => {
     const scanLetter = String.fromCharCode(65 + index); // A, B, C, etc.
-    return `Scan ${scanLetter} (${timeSlot})`;
+    const lastTimestamp = getLastTimestampForColumn(timeSlot);
+
+    // If we found an EST timestamp, use it; otherwise fall back to the time slot
+    if (lastTimestamp && lastTimestamp !== timeSlot) {
+      return `Scan ${scanLetter} (${lastTimestamp} EST)`;
+    } else {
+      return `Scan ${scanLetter} (${timeSlot})`;
+    }
+  };
+
+  // Function to extract only the dB value from a reading
+  const extractDbValue = (reading) => {
+    if (!reading) return "No Data";
+
+    // Extract just the dB value from "XX.X dB (HH:MM EST)" format
+    const dbMatch = reading.match(/([-\d.]+) dB/);
+    return dbMatch ? `${dbMatch[1]} dB` : reading;
   };
 
   return (
@@ -248,7 +287,7 @@ export default function App() {
                                   className="border border-gray-300 px-4 py-3 text-center"
                                   style={{ backgroundColor: bgColor }}
                                 >
-                                  {reading || "No Data"}
+                                  {extractDbValue(reading)}
                                 </td>
                               );
                             })}
