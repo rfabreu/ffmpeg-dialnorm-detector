@@ -46,6 +46,11 @@ exports.handler = async (event) => {
   }
 
   try {
+    console.log(`[matrix] DEBUG: Function called for date: ${date}`);
+    console.log(
+      `[matrix] DEBUG: Function version: ${new Date().toISOString()}`
+    );
+
     // Determine UTC start and end of the specified date.
     const startDate = new Date(date);
     if (Number.isNaN(startDate.getTime())) {

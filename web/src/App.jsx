@@ -47,6 +47,28 @@ export default function App() {
       })
       .then((data) => {
         console.log("Matrix API response:", data);
+
+        // NEW DEBUG: Check what time slots we're actually getting
+        if (Array.isArray(data) && data.length > 0) {
+          const firstStream = data[0];
+          if (firstStream && firstStream.readings) {
+            const timeSlots = Object.keys(firstStream.readings).sort();
+            console.log("DEBUG: Time slots received:", timeSlots);
+            console.log("DEBUG: Number of time slots:", timeSlots.length);
+
+            // Show a sample reading to see the format
+            const sampleSlot = timeSlots[0];
+            if (sampleSlot) {
+              console.log(
+                "DEBUG: Sample reading for slot",
+                sampleSlot,
+                ":",
+                firstStream.readings[sampleSlot]
+              );
+            }
+          }
+        }
+
         if (Array.isArray(data)) {
           setMatrixData(data);
         } else {
