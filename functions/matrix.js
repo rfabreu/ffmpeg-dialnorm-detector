@@ -90,16 +90,19 @@ exports.handler = async (event) => {
       };
     }
 
-    // NEW LOGIC: Group measurements by stream_id and scan time (more granular)
+    console.log(
+      `[matrix] Found ${measurements.length} measurements for date ${date}`
+    );
+
+    // NEW LOGIC: Group measurements by stream_id and actual scan time (not just hour)
     const groups = {};
     measurements.forEach((m) => {
       const t = new Date(m.timestamp);
-      // Create a more granular time slot (5-minute intervals for better scan separation)
-      const minutes = Math.floor(t.getUTCMinutes() / 5) * 5;
+      // Create unique time slots based on actual scan timing (HH:MM format)
       const slot =
         String(t.getUTCHours()).padStart(2, "0") +
         ":" +
-        String(minutes).padStart(2, "0");
+        String(t.getUTCMinutes()).padStart(2, "0");
 
       if (!groups[m.stream_id]) groups[m.stream_id] = {};
       if (!groups[m.stream_id][slot]) {
@@ -120,6 +123,16 @@ exports.handler = async (event) => {
         }
       }
     });
+
+    // Log the time slots being created
+    const allTimeSlots = new Set();
+    Object.values(groups).forEach((streamGroups) => {
+      Object.keys(streamGroups).forEach((slot) => allTimeSlots.add(slot));
+    });
+    console.log(
+      `[matrix] Created ${allTimeSlots.size} unique time slots:`,
+      Array.from(allTimeSlots).sort()
+    );
 
     // Build the response array.
     const result = streams.map((s) => {
@@ -144,6 +157,8 @@ exports.handler = async (event) => {
         readings,
       };
     });
+
+    console.log(`[matrix] Final result has ${result.length} streams`);
 
     return {
       statusCode: 200,
