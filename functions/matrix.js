@@ -90,11 +90,17 @@ exports.handler = async (event) => {
       };
     }
 
-    // Group measurements by stream_id and hour-of-day, tracking the last timestamp for each hour.
+    // NEW LOGIC: Group measurements by stream_id and scan time (more granular)
     const groups = {};
     measurements.forEach((m) => {
       const t = new Date(m.timestamp);
-      const slot = String(t.getUTCHours()).padStart(2, "0") + ":00";
+      // Create a more granular time slot (5-minute intervals for better scan separation)
+      const minutes = Math.floor(t.getUTCMinutes() / 5) * 5;
+      const slot =
+        String(t.getUTCHours()).padStart(2, "0") +
+        ":" +
+        String(minutes).padStart(2, "0");
+
       if (!groups[m.stream_id]) groups[m.stream_id] = {};
       if (!groups[m.stream_id][slot]) {
         groups[m.stream_id][slot] = {
